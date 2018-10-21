@@ -5,6 +5,7 @@
 //// http://cs.lmu.edu/~ray/notes/javanetexamples/
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -92,6 +93,68 @@ public class Server {
             this.clientNumber = clientNumber;
             log("New connection with client# " + clientNumber + " at " + socket);
         }
+        
+        private String firstWordFromCommand(String command){
+        	String firstWord = "";
+            if (command.contains(" ")){
+            	firstWord= command.substring(0, command.indexOf(" "));
+            }
+            else {
+            	firstWord = command;
+            }
+            return firstWord;
+        }
+        
+        private String secondWordFromCommand(String command){
+        	String secondWord = "";
+            if (command.contains(" ")){
+            	secondWord = command.substring(command.indexOf(" ") + 1, command.length());
+            }
+            return secondWord;
+        }
+        
+        private void processCommand(String command, PrintWriter out) {
+        	
+        	
+        	switch(firstWordFromCommand(command))
+        	{
+        	case "ls" :
+        		processLs(out);
+        		break; // break is optional
+        		
+        	case "mkdir":
+        		processMkdir(secondWordFromCommand(command), out);
+			    break; // break is optional
+        	   
+    	    default:
+    	    	out.println("default");
+    	    	break;
+        	}
+        }
+        
+        private void processLs(PrintWriter out) {
+        	File[] files = new File(".").listFiles();
+        	for(File file : files){
+        		if (file.isFile()){
+        			out.println("[File] " + file.getName());
+        		}
+        		else if (file.isDirectory()){
+        			out.println("[Folder] " + file.getName());
+        		} 
+        		else {
+        			out.println("Neither a file or a folder");
+        		}
+        	}
+        }
+        
+        private void processMkdir(String folder, PrintWriter out) {
+        	
+		    if (new File(folder).mkdirs()) {
+		  	  	out.println("Le dossier " + folder + " a bien ete cree");
+		    } else {
+		    	out.println("Le dossier " + folder + " n'a pas ete cree");
+		    }
+        }
 
         /**
          * Services this thread's client by first sending the
@@ -109,16 +172,17 @@ public class Server {
 
                 // Send a welcome message to the client.
                 out.println("Hello, you are client #" + clientNumber + ".");
-                out.println("Enter a line with only a period to quit\n");
 
                 // Get messages from the client, line by line; return them
                 // capitalized
                 while (true) {
                     String input = in.readLine();
-                    if (input == null || input.equals(".")) {
+                    if (input == null || input.equals("exit")) {
                         break;
                     }
-                    out.println(input.toUpperCase());
+                    processCommand(input, out);
+                    out.println("done");
+                    
                 }
             } catch (IOException e) {
                 log("Error handling client# " + clientNumber + ": " + e);

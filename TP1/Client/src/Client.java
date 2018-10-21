@@ -10,7 +10,6 @@ public class Client {
 
     private BufferedReader in;
     private PrintWriter out;
-    private String messageArea = new String();
 
     public Client() {
 
@@ -66,11 +65,24 @@ public class Client {
     }
     
     private String firstWordFromCommand(String command){
-    	String firstWord = command;
-        if (firstWord.contains(" ")){
-        	firstWord= firstWord.substring(0, firstWord.indexOf(" "));
+    	String firstWord = "";
+        if (command.contains(" ")){
+        	firstWord= command.substring(0, command.indexOf(" "));
+        }
+        else {
+        	firstWord = command;
         }
         return firstWord;
+    }
+    
+    private void logHelp() {
+    	log("*** Help ***");
+        log("     ls");
+        log("     cd <Répertoire>");
+        log("     mkdir <Nom du Dossier>");
+        log("     upload <Nom du Fichier>");
+        log("     download <Nom du Fichier>");
+        log("     exit");
     }
 	
     private void log(String message) {
@@ -90,32 +102,34 @@ public class Client {
                 new InputStreamReader(socket.getInputStream()));
         out = new PrintWriter(socket.getOutputStream(), true);
 
-        // Consume the initial welcoming messages from the server
-        for (int i = 0; i < 3; i++) {
-            messageArea += in.readLine() + "\n";
-        }
-        log(messageArea);
+        log(in.readLine() + "\n");
         
         String command = "";
-        while (!isCommandValid(command)){
-        	log("Enter Command");
-        	command = System.console().readLine();
+        while (!command.equals("exit")) {
+
+	        log("\nEnter Command");
+	        command = System.console().readLine();
+	        while (!isCommandValid(command)){
+	            log("Invalid Command");
+	            logHelp();
+	        	command = System.console().readLine();
+	        }
+	        out.println(command);
+	        
+	        String response = "";
+	        try {
+	        	do {
+	        		log(response);
+	        		response = in.readLine();
+	        	} while (!response.equals("done"));
+
+	        } catch (IOException ex) {
+	        	response = "Error: " + ex;
+	        }
+    	}
+        if (command.equals("exit")){
+        	log("Vous avez ete deconnecte avec succes.");
         }
-        out.println(command);
-        
-        
-        
-        String response;
-        try {
-            response = in.readLine();
-            if (response == null || response.equals("")) {
-                  System.exit(0);
-              }
-        } catch (IOException ex) {
-               response = "Error: " + ex;
-        }
-        log(response);
-        
     }
 
     public static void main(String[] args) throws Exception {
