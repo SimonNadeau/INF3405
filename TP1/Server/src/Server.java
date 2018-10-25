@@ -73,7 +73,7 @@ public class Server {
 		listener.setReuseAddress(true);
 		listener.bind(new InetSocketAddress(locIP, port));
 		
-        System.out.format("The capitalization server is running on %s:%d%n", serverAddress, port);
+        System.out.format("The server is running on %s:%d%n", serverAddress, port);
     
         try {
             while (true) {
@@ -154,35 +154,41 @@ public class Server {
         
         private void processCd(String secondArgument, PrintWriter out){
         	
-        	Path desiredPath = actualPath.subpath(0, actualPath.getNameCount()-1);;
-//        	if (desiredPath.endsWith(".")){
-//        		desiredPath = .subpath(0, actualPath.getNameCount()-1);
-//        	}
+        	Path desiredPath = actualPath.subpath(0, actualPath.getNameCount()-1);
         	
         	Path path = Paths.get(secondArgument);
         	for (int i = 0; i < path.getNameCount(); i++){
         		
         		String subpath = path.subpath(i, i + 1).toString();
         		if (subpath.equals("..")){
-        			desiredPath = Paths.get("/", desiredPath.subpath(0, desiredPath.getNameCount()-1).toString());
+        			desiredPath = desiredPath.subpath(0, desiredPath.getNameCount()-1);
+        			// MAC
+        			// desiredPath = Paths.get("/", desiredPath.subpath(0, desiredPath.getNameCount()-1).toString());
         		} else {
-        			desiredPath = Paths.get("/", desiredPath.toString(), "/" , subpath);
+        			desiredPath = desiredPath.resolve(subpath);
+        			// MAC
+        			// desiredPath = Paths.get("/", desiredPath.toString(), "/" , subpath);
         		}
         	}
-        	desiredPath = Paths.get(desiredPath.toString(), "/.");
-        	log(desiredPath.toString());
+        	desiredPath = actualPath.getRoot().resolve(desiredPath);
+        	desiredPath = desiredPath.resolve(".");
+        	log("CD : " + desiredPath.toString());
+
+        	// MAC
+        	// desiredPath = Paths.get(desiredPath.toString(), "/.");
         	
         	if (desiredPath.toFile().isDirectory()){        		
         		actualPath = desiredPath;
-        		out.println("Vous êtes dans le dossier " + actualPath.subpath(actualPath.getNameCount()-2, actualPath.getNameCount()-1).toString());
+        		out.println("Vous etes dans le dossier " + actualPath.subpath(actualPath.getNameCount()-2, actualPath.getNameCount()-1).toString());
         	}
         	else {
         		out.println("Le dossier " + desiredPath.subpath(desiredPath.getNameCount()-2, desiredPath.getNameCount()-1).toString() + " n'existe pas");
         	}
-        	
+
         }
         
         private void processLs(PrintWriter out) {
+        	log("LS : " + actualPath.toString());
         	File[] files = new File(actualPath.toString()).listFiles();
         	for(File file : files){
         		if (file.isFile()){
@@ -195,11 +201,15 @@ public class Server {
         			out.println("Neither a file or a folder");
         		}
         	}
+        	// Si le dossier est vide.
+        	if (files.length == 0) {
+        		out.println("Aucun fichier dans le repertoire");
+        	}
         }
         
         private void processMkdir(String folder, PrintWriter out) {
         	
-		    if (new File(folder).mkdirs()) {
+		    if (new File(actualPath.resolve(folder).toString()).mkdirs()) {
 		  	  	out.println("Le dossier " + folder + " a bien ete cree");
 		    } else {
 		    	out.println("Le dossier " + folder + " n'a pas ete cree");
