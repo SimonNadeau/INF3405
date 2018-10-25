@@ -5,7 +5,9 @@
 //// http://cs.lmu.edu/~ray/notes/javanetexamples/
 
 import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -13,6 +15,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.regex.Pattern;
 
 public class Server {
@@ -33,33 +37,35 @@ public class Server {
 		}
 	}
 	
-    private static void log(String message) {
-        System.out.println(message);
-    }
+//    private static void log(String message) {
+//        System.out.println(message);
+//    }
 
     public static void main(String[] args) throws Exception {
     	
     	int clientNumber = 1;
       
-        // Enter IP address 
-        Server.log("Enter IP Address of the Server:");
-  	    String serverAddress = System.console().readLine();
-  	    
-  	    // If IP address entered is wrong.
-        while (!Server.validateIp(serverAddress)){
-            Server.log("Wrong IP Address. Enter another one:");
-        	serverAddress = System.console().readLine();
-        }
-        
-        // Enter Port
-        Server.log("Enter Port for the server :");
-        int port = Integer.parseInt(System.console().readLine());
-        
-        // If Port entered is wrong.
-        while (!Server.validatePort(port)){
-            Server.log("Wrong Port. Should be between 5000 and 5500. Enter another one:");
-            port = Integer.parseInt(System.console().readLine());
-        }
+//        // Enter IP address 
+//        Server.log("Enter IP Address of the Server:");
+//  	    String serverAddress = System.console().readLine();
+//  	    
+//  	    // If IP address entered is wrong.
+//        while (!Server.validateIp(serverAddress)){
+//            Server.log("Wrong IP Address. Enter another one:");
+//        	serverAddress = System.console().readLine();
+//        }
+//        
+//        // Enter Port
+//        Server.log("Enter Port for the server :");
+//        int port = Integer.parseInt(System.console().readLine());
+//        
+//        // If Port entered is wrong.
+//        while (!Server.validatePort(port)){
+//            Server.log("Wrong Port. Should be between 5000 and 5500. Enter another one:");
+//            port = Integer.parseInt(System.console().readLine());
+//        }
+    	String serverAddress = "127.0.0.1";
+    	int port = 5000;
         
 		ServerSocket listener;
 		InetAddress locIP = InetAddress.getByName(serverAddress);
@@ -71,7 +77,7 @@ public class Server {
     
         try {
             while (true) {
-                new Capitalizer(listener.accept(), clientNumber++).start();
+                new Manager(listener.accept(), clientNumber++).start();
             }
         } finally {
             listener.close();
@@ -84,14 +90,16 @@ public class Server {
      * socket.  The client terminates the dialogue by sending a single line
      * containing only a period.
      */
-    private static class Capitalizer extends Thread {
+    private static class Manager extends Thread {
         private Socket socket;
         private int clientNumber;
+        private Path actualPath;
 
-        public Capitalizer(Socket socket, int clientNumber) {
+        public Manager(Socket socket, int clientNumber) {
             this.socket = socket;
             this.clientNumber = clientNumber;
             log("New connection with client# " + clientNumber + " at " + socket);
+            actualPath = new File(".").toPath().toAbsolutePath();
         }
         
         private String firstWordFromCommand(String command){
@@ -120,11 +128,23 @@ public class Server {
         	{
         	case "ls" :
         		processLs(out);
-        		break; // break is optional
+        		break; 
         		
         	case "mkdir":
         		processMkdir(secondWordFromCommand(command), out);
-			    break; // break is optional
+			    break; 
+			    
+        	case "cd":
+        		processCd(secondWordFromCommand(command), out);
+			    break;
+			    
+        	case "upload":
+    			try {
+    				saveFile(socket);
+    			} catch (IOException e) {
+    				e.printStackTrace();
+    			}
+			    break;
         	   
     	    default:
     	    	out.println("default");
@@ -132,8 +152,38 @@ public class Server {
         	}
         }
         
+        private void processCd(String secondArgument, PrintWriter out){
+        	
+        	Path desiredPath = actualPath.subpath(0, actualPath.getNameCount()-1);;
+//        	if (desiredPath.endsWith(".")){
+//        		desiredPath = .subpath(0, actualPath.getNameCount()-1);
+//        	}
+        	
+        	Path path = Paths.get(secondArgument);
+        	for (int i = 0; i < path.getNameCount(); i++){
+        		
+        		String subpath = path.subpath(i, i + 1).toString();
+        		if (subpath.equals("..")){
+        			desiredPath = Paths.get("/", desiredPath.subpath(0, desiredPath.getNameCount()-1).toString());
+        		} else {
+        			desiredPath = Paths.get("/", desiredPath.toString(), "/" , subpath);
+        		}
+        	}
+        	desiredPath = Paths.get(desiredPath.toString(), "/.");
+        	log(desiredPath.toString());
+        	
+        	if (desiredPath.toFile().isDirectory()){        		
+        		actualPath = desiredPath;
+        		out.println("Vous êtes dans le dossier " + actualPath.subpath(actualPath.getNameCount()-2, actualPath.getNameCount()-1).toString());
+        	}
+        	else {
+        		out.println("Le dossier " + desiredPath.subpath(desiredPath.getNameCount()-2, desiredPath.getNameCount()-1).toString() + " n'existe pas");
+        	}
+        	
+        }
+        
         private void processLs(PrintWriter out) {
-        	File[] files = new File(".").listFiles();
+        	File[] files = new File(actualPath.toString()).listFiles();
         	for(File file : files){
         		if (file.isFile()){
         			out.println("[File] " + file.getName());
@@ -155,6 +205,23 @@ public class Server {
 		    	out.println("Le dossier " + folder + " n'a pas ete cree");
 		    }
         }
+        
+    	private void saveFile(Socket sock) throws IOException {
+    		DataInputStream dis = new DataInputStream(sock.getInputStream());
+    		FileOutputStream fos = new FileOutputStream("testfile.txt");
+    		byte[] buffer = new byte[4096];
+    		
+    		int read = 0;
+    		while((read = dis.read(buffer)) > 0) {
+    			System.out.println("read " + read + " bytes.");
+    			fos.write(buffer, 0, read);
+    			buffer = new byte[4096];
+    			log("writeDone");
+    		}
+    		
+    		fos.close();
+    		dis.close();
+    	}
 
         /**
          * Services this thread's client by first sending the

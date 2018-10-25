@@ -1,4 +1,7 @@
 import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -75,6 +78,34 @@ public class Client {
         return firstWord;
     }
     
+    private String secondWordFromCommand(String command){
+    	String secondWord = "";
+        if (command.contains(" ")){
+        	secondWord = command.substring(command.indexOf(" ") + 1, command.length());
+        }
+        return secondWord;
+    }
+    
+    private boolean uploadFile(Socket sock, String file) throws IOException {
+    	
+    	if (!(new File(file).isFile())){
+    		log("Ce fichier n'existe pas.");
+    		return false;
+    	}
+    	
+    	DataOutputStream dos = new DataOutputStream(sock.getOutputStream());
+		FileInputStream fis = new FileInputStream(file);
+		byte[] buffer = new byte[4096];
+		
+		while (fis.read(buffer) > 0) {
+			dos.write(buffer);
+		}
+		
+		fis.close();
+		dos.close();
+    	return true;
+    }
+    
     private void logHelp() {
     	log("*** Help ***");
         log("     ls");
@@ -89,14 +120,16 @@ public class Client {
         System.out.println(message);
     }
     
-    @SuppressWarnings("resource")
+//    @SuppressWarnings("resource")
 	public void connectToServer() throws IOException {
         
-    	String serverAddress = initializeIp();
-        int port = initializePort();
+//    	String serverAddress = initializeIp();
+//        int port = initializePort();
+    	String serverAddress = "127.0.0.1";
+    	int port = 5000;
         Socket socket = new Socket(serverAddress, port);
 		
-        System.out.format("The capitalization server is running on %s:%d%n", serverAddress, port);
+        System.out.format("The manager server is running on %s:%d%n", serverAddress, port);
         
         in = new BufferedReader(
                 new InputStreamReader(socket.getInputStream()));
@@ -115,6 +148,11 @@ public class Client {
 	        	command = System.console().readLine();
 	        }
 	        out.println(command);
+	        
+	        // Envoie d'un fichier
+	        if (firstWordFromCommand(command).equals("upload")){
+	        	uploadFile(socket, secondWordFromCommand(command));
+	        }
 	        
 	        String response = "";
 	        try {
