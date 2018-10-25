@@ -1,7 +1,9 @@
 import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -86,30 +88,49 @@ public class Client {
         return secondWord;
     }
     
-    private boolean uploadFile(Socket sock, String file) throws IOException {
+    private boolean uploadFile(Socket sock, String fileName) throws IOException {
     	
-    	if (!(new File(file).isFile())){
+    	File file = new File(fileName);
+    	if (!(file.isFile())){
     		log("Ce fichier n'existe pas.");
     		return false;
     	}
     	
     	DataOutputStream dos = new DataOutputStream(sock.getOutputStream());
-		FileInputStream fis = new FileInputStream(file);
+		FileInputStream fis = new FileInputStream(file.toString());
 		byte[] buffer = new byte[4096];
+		int read;
 		
-		while (fis.read(buffer) > 0) {
-			dos.write(buffer);
+		while ((read=fis.read(buffer)) > 0) {
+			dos.write(buffer, 0, read);
 		}
 		
 		fis.close();
-		dos.close();
+    	return true;
+    }
+    
+    private boolean downloadFile(Socket sock, String fileName) throws IOException {
+    	
+		DataInputStream dis = new DataInputStream(sock.getInputStream());
+		FileOutputStream fos = new FileOutputStream(fileName);
+		byte[] buffer = new byte[4096];
+		
+		int read = 0;
+		while((read = dis.read(buffer)) > 0) {
+			System.out.println("read " + read + " bytes.");
+			fos.write(buffer, 0, read);
+			buffer = new byte[4096];
+			log("writeDone");
+		}
+		log("Le fichier a ete televerse");
+		fos.close();
     	return true;
     }
     
     private void logHelp() {
     	log("*** Help ***");
         log("     ls");
-        log("     cd <Répertoire>");
+        log("     cd <Repertoire>");
         log("     mkdir <Nom du Dossier>");
         log("     upload <Nom du Fichier>");
         log("     download <Nom du Fichier>");
@@ -131,12 +152,12 @@ public class Client {
 		
         System.out.format("The manager server is running on %s:%d%n", serverAddress, port);
         
-        in = new BufferedReader(
-                new InputStreamReader(socket.getInputStream()));
+        in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         out = new PrintWriter(socket.getOutputStream(), true);
 
         log(in.readLine() + "\n");
         
+        out.println(serverAddress + " " + port);
         String command = "";
         while (!command.equals("exit")) {
 
@@ -152,6 +173,9 @@ public class Client {
 	        // Envoie d'un fichier
 	        if (firstWordFromCommand(command).equals("upload")){
 	        	uploadFile(socket, secondWordFromCommand(command));
+	        }
+	        if (firstWordFromCommand(command).equals("download")){
+	        	downloadFile(socket, secondWordFromCommand(command));
 	        }
 	        
 	        String response = "";

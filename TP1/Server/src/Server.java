@@ -1,12 +1,8 @@
-//// Source :
-//// Ray Toal
-//// Department of Electrical Engineering and Computer Science
-//// Loyola Marymount University
-//// http://cs.lmu.edu/~ray/notes/javanetexamples/
-
 import java.io.BufferedReader;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -17,6 +13,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.regex.Pattern;
 
 public class Server {
@@ -94,6 +93,8 @@ public class Server {
         private Socket socket;
         private int clientNumber;
         private Path actualPath;
+        private String IpAdressClient;
+        private String portClient;
 
         public Manager(Socket socket, int clientNumber) {
             this.socket = socket;
@@ -140,7 +141,14 @@ public class Server {
 			    
         	case "upload":
     			try {
-    				saveFile(socket);
+    				saveFile(out, socket, (secondWordFromCommand(command)));
+    			} catch (IOException e) {
+    				e.printStackTrace();
+    			}
+			    break;
+        	case "download":
+    			try {
+    				sendFile(out, socket, (secondWordFromCommand(command)));
     			} catch (IOException e) {
     				e.printStackTrace();
     			}
@@ -172,7 +180,6 @@ public class Server {
         	}
         	desiredPath = actualPath.getRoot().resolve(desiredPath);
         	desiredPath = desiredPath.resolve(".");
-        	log("CD : " + desiredPath.toString());
 
         	// MAC
         	// desiredPath = Paths.get(desiredPath.toString(), "/.");
@@ -188,7 +195,6 @@ public class Server {
         }
         
         private void processLs(PrintWriter out) {
-        	log("LS : " + actualPath.toString());
         	File[] files = new File(actualPath.toString()).listFiles();
         	for(File file : files){
         		if (file.isFile()){
@@ -216,9 +222,9 @@ public class Server {
 		    }
         }
         
-    	private void saveFile(Socket sock) throws IOException {
+    	private void saveFile(PrintWriter out, Socket sock, String fileName) throws IOException {
     		DataInputStream dis = new DataInputStream(sock.getInputStream());
-    		FileOutputStream fos = new FileOutputStream("testfile.txt");
+    		FileOutputStream fos = new FileOutputStream(fileName);
     		byte[] buffer = new byte[4096];
     		
     		int read = 0;
@@ -230,33 +236,51 @@ public class Server {
     		}
     		
     		fos.close();
-    		dis.close();
+    		out.println("Le fichier a ete ajoute");
+    	}
+    	
+    	private boolean sendFile(PrintWriter out, Socket sock, String fileName) throws IOException {
+    		
+        	File file = new File(actualPath.resolve(fileName).toString());
+        	if (!(file.isFile())){
+        		log("Ce fichier n'existe pas.");
+        		return false;
+        	}
+        	
+        	DataOutputStream dos = new DataOutputStream(sock.getOutputStream());
+    		FileInputStream fis = new FileInputStream(file);
+    		byte[] buffer = new byte[4096];
+    		int read;
+    		
+    		while ((read=fis.read(buffer)) > 0) {
+    			dos.write(buffer, 0, read);
+    		}
+    		out.println("Le fichier a ete envoye");
+    		fis.close();
+        	return true;
     	}
 
-        /**
-         * Services this thread's client by first sending the
-         * client a welcome message then repeatedly reading strings
-         * and sending back the capitalized version of the string.
-         */
+
         public void run() {
             try {
 
-                // Decorate the streams so we can send characters
-                // and not just bytes.  Ensure output is flushed
-                // after every newline.
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
 
                 // Send a welcome message to the client.
                 out.println("Hello, you are client #" + clientNumber + ".");
+                String input = in.readLine();
+                IpAdressClient = firstWordFromCommand(input);
+                portClient = secondWordFromCommand(input);
 
                 // Get messages from the client, line by line; return them
                 // capitalized
                 while (true) {
-                    String input = in.readLine();
+                    input = in.readLine();
                     if (input == null || input.equals("exit")) {
                         break;
                     }
+                    logServer(input);
                     processCommand(input, out);
                     out.println("done");
                     
@@ -273,10 +297,12 @@ public class Server {
             }
         }
 
-        /**
-         * Logs a simple message.  In this case we just write the
-         * message to the server applications standard output.
-         */
+        private void logServer(String message) {
+        	DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd@HH:mm:ss");
+        	Date date = new Date();
+        	System.out.println("[" + IpAdressClient + ":" + portClient + " - " + dateFormat.format(date) + "]" + " : " + message);
+        }
+        
         private void log(String message) {
             System.out.println(message);
         }
