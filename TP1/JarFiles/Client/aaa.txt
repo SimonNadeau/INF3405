@@ -13,4 +13,5 @@ que son contenu n'en soit modifié. Il a été popularisé dans les
 ssages du Lorem Ipsum, et, plus récemment, p
 ar son inclusion dans des applications de mise en page de texte, comme Aldus PageMaker.
 
-But i was sandra's rose.
+But i was sandra's rose.Le fichier aaa.txt a bien ete telecharge
+done
