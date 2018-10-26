@@ -99,8 +99,8 @@ public class Server {
         public Manager(Socket socket, int clientNumber) {
             this.socket = socket;
             this.clientNumber = clientNumber;
-            log("New connection with client# " + clientNumber + " at " + socket);
-            actualPath = new File(".").toPath().toAbsolutePath();
+            log("New connection with client# " + clientNumber);
+            //actualPath = new File(".").toPath().toAbsolutePath();
         }
         
         private String firstWordFromCommand(String command){
@@ -153,6 +153,8 @@ public class Server {
     				e.printStackTrace();
     			}
 			    break;
+        	case "exit":
+        		break;
         	   
     	    default:
     	    	out.println("default");
@@ -226,17 +228,14 @@ public class Server {
     		DataInputStream dis = new DataInputStream(sock.getInputStream());
     		FileOutputStream fos = new FileOutputStream(fileName);
     		byte[] buffer = new byte[4096];
-    		
+    		long fileSize = dis.readLong();
     		int read = 0;
-    		while((read = dis.read(buffer)) > 0) {
-    			System.out.println("read " + read + " bytes.");
+    		while(fileSize > 0 && (read = dis.read(buffer)) > 0) {
     			fos.write(buffer, 0, read);
-    			buffer = new byte[4096];
-    			log("writeDone");
+    			fileSize -= read;
     		}
-    		
+    		out.println("Le fichier " + fileName + " a bien ete televerse");
     		fos.close();
-    		out.println("Le fichier a ete ajoute");
     	}
     	
     	private boolean sendFile(PrintWriter out, Socket sock, String fileName) throws IOException {
@@ -246,18 +245,19 @@ public class Server {
         		log("Ce fichier n'existe pas.");
         		return false;
         	}
-        	
-        	DataOutputStream dos = new DataOutputStream(sock.getOutputStream());
-    		FileInputStream fis = new FileInputStream(file);
-    		byte[] buffer = new byte[4096];
-    		int read;
-    		
-    		while ((read=fis.read(buffer)) > 0) {
-    			dos.write(buffer, 0, read);
-    		}
-    		out.println("Le fichier a ete envoye");
-    		fis.close();
-        	return true;
+        	else {    		
+        		DataOutputStream dos = new DataOutputStream(sock.getOutputStream());
+        		FileInputStream fis = new FileInputStream(file.toString());
+        		byte[] buffer = new byte[4096];
+        		int read;
+        		dos.writeLong(file.length());
+        		while ((read=fis.read(buffer)) > 0) {
+        			dos.write(buffer, 0, read);
+        		}
+        		out.println("Le fichier " + fileName + " a bien ete telecharge");
+        		fis.close();
+        		return true;
+        	}
     	}
 
 
@@ -270,6 +270,9 @@ public class Server {
                 // Send a welcome message to the client.
                 out.println("Hello, you are client #" + clientNumber + ".");
                 String input = in.readLine();
+                actualPath = Paths.get(input);
+                log(actualPath.toString());
+                input = in.readLine();
                 IpAdressClient = firstWordFromCommand(input);
                 portClient = secondWordFromCommand(input);
 
@@ -277,7 +280,7 @@ public class Server {
                 // capitalized
                 while (true) {
                     input = in.readLine();
-                    if (input == null || input.equals("exit")) {
+                    if (input == null) {
                         break;
                     }
                     logServer(input);
