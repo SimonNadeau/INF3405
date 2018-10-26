@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.nio.file.Path;
 import java.util.regex.Pattern;
 import java.lang.String;
 
@@ -16,6 +15,9 @@ public class Client {
 
     private BufferedReader in;
     private PrintWriter out;
+    private Socket socket;
+    private String serverAddress;
+    private int port;
 
     public Client() {
 
@@ -105,7 +107,7 @@ public class Client {
         return firstWord;
     }
     
-    // Takes the first part of the command that is entered. Mostly used for the command line
+    // Takes the second part of the command that is entered. Mostly used for the command line
     private String secondWordFromCommand(String command){
     	String secondWord = "";
         if (command.contains(" ")){
@@ -114,28 +116,31 @@ public class Client {
         return secondWord;
     }
     
-    private boolean uploadFile(Socket sock, String fileName) throws IOException {
+    // If file in current directory exist, return true. Else, retrun False
+    private boolean isFileExist(String fileName){
     	File file = new File(fileName);
-    	// log("UPLOAD " + file.getAbsolutePath());
     	if (!(file.isFile())){
     		log("Ce fichier n'existe pas.");
     		return false;
     	}
-    	else {    		
-    		DataOutputStream dos = new DataOutputStream(sock.getOutputStream());
-    		FileInputStream fis = new FileInputStream(file.toString());
-    		byte[] buffer = new byte[4096];
-    		int read;
-    		dos.writeLong(file.length());
-    		while ((read=fis.read(buffer)) > 0) {
-    			dos.write(buffer, 0, read);
-    		}
-    		fis.close();
-    		return true;
-    	}
-    	
+    	return true;
     }
     
+    // Upload file to server from where client jar file is run to where server jar file is run.
+    private void uploadFile(Socket sock, File file) throws IOException {
+   		
+		DataOutputStream dos = new DataOutputStream(sock.getOutputStream());
+		FileInputStream fis = new FileInputStream(file.toString());
+		byte[] buffer = new byte[4096];
+		int read;
+		dos.writeLong(file.length());
+		while ((read=fis.read(buffer)) > 0) {
+			dos.write(buffer, 0, read);
+		}
+		fis.close();
+    }
+    
+    // Download file from server from where server location to where client jar file is run.
     private void downloadFile(Socket sock, String fileName) throws IOException {
     	
 		DataInputStream dis = new DataInputStream(sock.getInputStream());
@@ -143,6 +148,7 @@ public class Client {
 		byte[] buffer = new byte[4096];
 		long fileSize = dis.readLong();
 		int read = 0;
+		// While there is bytes in the dis, we empty them in the file.
 		while(fileSize > 0 && (read = dis.read(buffer)) > 0) {
 			fos.write(buffer, 0, read);
 			fileSize -= read;
@@ -150,62 +156,92 @@ public class Client {
 		fos.close();
     }
     
-//    @SuppressWarnings("resource")
-	public void connectToServer() throws IOException {
-        
-//    	String serverAddress = initializeIp();
-//        int port = initializePort();
-    	String serverAddress = "127.0.0.1";
-    	int port = 5000;
-        Socket socket = new Socket(serverAddress, port);
-		
-        System.out.format("The server is running on %s:%d%n", serverAddress, port);
-        
+    // Processing the response from the server
+    private void processResponse(){
+        String response = "";
+        try {
+        	do {
+        		log(response);
+        		response = in.readLine();
+        	} while (!response.equals("done"));
+
+        } catch (IOException ex) {
+        	response = "Error: " + ex;
+        }
+    }
+    
+    public void connectToServer() throws IOException {
+    	serverAddress = initializeIp();
+    	port = initializePort();
+        socket = new Socket(serverAddress, port);   
+//        socket = new Socket("127.0.0.1", 5000);   
         in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         out = new PrintWriter(socket.getOutputStream(), true);
-
+    }
+    
+	public void run() throws IOException {
+		
+		connectToServer();
+		
+		// Welcome Message from the server
         log(in.readLine() + "\n");
-        Path actualPath = new File(".").toPath().toAbsolutePath();
-        out.println(actualPath);
+        
+        // Send the current position to the server, the Ipadress and the port
+        out.println(new File(".").toPath().toAbsolutePath());
         out.println(serverAddress + " " + port);
+        
+        // Enter commands while not exiting command line
         String command = "";
         while (!command.equals("exit")) {
 
 	        log("\nEnter Command");
 	        command = System.console().readLine();
+	        // Check if command is valid
 	        while (!isCommandValid(command)){
 	            log("Invalid Command");
 	            logHelp();
 	        	command = System.console().readLine();
 	        }
-	        out.println(command);
 	        
-	        // Envoie d'un fichier
+	        // Uploading file
 	        if (firstWordFromCommand(command).equals("upload")){
-	        	uploadFile(socket, secondWordFromCommand(command));
+	        	if (isFileExist(secondWordFromCommand(command))){
+	    	        out.println(command);
+	    	        uploadFile(socket, new File(secondWordFromCommand(command)));
+	    	        processResponse();
+	        	}
 	        }
-	        if (firstWordFromCommand(command).equals("download")){
-	        	downloadFile(socket, secondWordFromCommand(command));
+	        // Downloading file
+	        else if (firstWordFromCommand(command).equals("download")){
+    	        out.println(command);
+    	        String response = in.readLine();
+    	        if(response.equals("Downloading...")){    	        	
+    	        	downloadFile(socket, secondWordFromCommand(command));
+    	        } else {    	        	
+    	        	log(response);
+    	        }
+	        	processResponse();
+	        }
+	        // Any other command
+	        else {
+		        out.println(command);
+	        	processResponse();
 	        }
 	        
-	        String response = "";
-	        try {
-	        	do {
-	        		log(response);
-	        		response = in.readLine();
-	        	} while (!response.equals("done"));
-
-	        } catch (IOException ex) {
-	        	response = "Error: " + ex;
-	        }
     	}
+        // Exit
         if (command.equals("exit")){
+            try {
+                socket.close();
+            } catch (IOException e) {
+                log("Couldn't close a socket, what's going on?");
+            }
         	log("Vous avez ete deconnecte avec succes.");
         }
     }
 
     public static void main(String[] args) throws Exception {
         Client client = new Client();
-        client.connectToServer();
+        client.run();
     }
 }
